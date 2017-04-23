@@ -41,8 +41,6 @@ public class IkeaTradfriGatewayDiscoveryParticipant implements MDNSDiscoveryPart
     @Override
     public ThingUID getThingUID(ServiceInfo service) {
         if (service != null) {
-            //logger.info("getThingUID "+service.toString());
-
             if ((service.getType() != null) && service.getType().equals(getServiceType())
                     && (service.getName().matches("gw:([a-f0-9]{2}[-]?){6}"))) {
                 return new ThingUID(IkeaTradfriBindingConstants.THING_TYPE_GATEWAY,
@@ -54,7 +52,7 @@ public class IkeaTradfriGatewayDiscoveryParticipant implements MDNSDiscoveryPart
 
     @Override
     public DiscoveryResult createResult(ServiceInfo service) {
-        logger.info("createResult ServiceInfo: {}", service);
+        logger.trace("createResult ServiceInfo: {}", service);
         DiscoveryResult result = null;
         String ip = null;
         //StringBuilder sb = new StringBuilder(;
@@ -98,7 +96,7 @@ public class IkeaTradfriGatewayDiscoveryParticipant implements MDNSDiscoveryPart
         sb.add("qualified:");
         sb.add(service.getQualifiedNameMap().toString());
 
-        logger.info("Discovered gateway, data: {}", String.join(" ", sb));
+        logger.trace("Discovered gateway, data: {}", String.join(" ", sb));
 
         if (service.getHostAddresses() != null && service.getHostAddresses().length > 0
                 && !service.getHostAddresses()[0].isEmpty()) {
@@ -106,7 +104,7 @@ public class IkeaTradfriGatewayDiscoveryParticipant implements MDNSDiscoveryPart
         }
         ThingUID thingUID = getThingUID(service);
         if (thingUID != null && ip != null) {
-            logger.info("Created a DiscoveryResult for Ikea Trådfri Gateway {} on IP {}", thingUID, ip);
+            logger.debug("Created a DiscoveryResult for Ikea Trådfri Gateway {} on IP {}", thingUID, ip);
             Map<String, Object> properties = new HashMap<>(1);
             props = service.getPropertyNames();
             while(props.hasMoreElements()) {
@@ -114,10 +112,7 @@ public class IkeaTradfriGatewayDiscoveryParticipant implements MDNSDiscoveryPart
                 properties.put(s, service.getPropertyString(s));
             }
 
-
             properties.put(IkeaTradfriGatewayConfiguration.HOST, ip + ":" + service.getPort());
-            //properties.put(IkeaTradfriGatewayConfiguration.TOKEN, "");
-
             result = DiscoveryResultBuilder.create(thingUID).withProperties(properties).withLabel(service.getName())
                     .build();
         }

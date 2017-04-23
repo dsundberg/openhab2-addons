@@ -88,7 +88,7 @@ public class IkeaTradfriDeviceDiscoveryService extends AbstractDiscoveryService 
                     }
 
                     Map<String, Object> properties = new HashMap<>(1);
-                    logger.trace("Adding new Tradfri Bulb {} to inbox", thingId);
+                    logger.debug("Adding new Tradfri Bulb {} to inbox", thingId);
                     DiscoveryResult discoveryResult = DiscoveryResultBuilder.create(thingId).withBridge(bridge)
                             .withLabel(label).withProperties(properties).build();
                     thingDiscovered(discoveryResult);

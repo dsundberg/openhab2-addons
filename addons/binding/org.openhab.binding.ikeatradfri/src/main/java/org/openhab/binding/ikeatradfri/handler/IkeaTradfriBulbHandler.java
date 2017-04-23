@@ -37,20 +37,18 @@ public class IkeaTradfriBulbHandler extends BaseThingHandler implements IkeaTrad
 
     @Override
     public void onDataUpdate(String data) {
-        logger.info("Got some data:\n{}", data);
         try {
             JSONObject json = new JSONObject(data);
+            JSONObject state = json.getJSONArray(TRADFRI_LIGHT).getJSONObject(0);
 
-            JSONObject state = json.getJSONArray("3311").getJSONObject(0);
-
-            OnOffType onoff = state.getInt("5850") == 1 ? OnOffType.ON : OnOffType.OFF;
+            OnOffType onoff = state.getInt(TRADFRI_ONOFF) == 1 ? OnOffType.ON : OnOffType.OFF;
             updateState(CHANNEL_STATE, onoff);
 
-            PercentType dimmer = new PercentType((int) Math.round(state.getInt("5851") / 2.54));
+            PercentType dimmer = new PercentType((int) Math.round(state.getInt(TRADFRI_DIMMER) / 2.54));
             updateState(CHANNEL_BRIGHTNESS, dimmer);
 
             try {
-                String color = state.getString("5706");
+                String color = state.getString(TRADFRI_COLOR);
                 PercentType ctemp;
                 switch (color) {
                     case "f5faf6":
@@ -72,7 +70,7 @@ public class IkeaTradfriBulbHandler extends BaseThingHandler implements IkeaTrad
             }
 
 
-            logger.warn("Updating channels brightness: {} state: {}", dimmer.toString(), onoff.toString());
+            logger.debug("Updating channels brightness: {} state: {}", dimmer.toString(), onoff.toString());
         } catch (JSONException e) {
             logger.error("JSON error: {}", e.getMessage());
             e.printStackTrace();
@@ -81,7 +79,7 @@ public class IkeaTradfriBulbHandler extends BaseThingHandler implements IkeaTrad
 
     private void set(String payload) {
         String id = getThing().getUID().getId();
-        logger.warn("Sending to: {} payload: {}", id, payload);
+        logger.debug("Sending to: {} payload: {}", id, payload);
         ((IkeaTradfriGatewayHandler) getBridge().getHandler()).set("15001/" + id, payload);
     }
 
@@ -91,9 +89,9 @@ public class IkeaTradfriBulbHandler extends BaseThingHandler implements IkeaTrad
             JSONObject settings = new JSONObject();
             JSONArray array = new JSONArray();
             array.put(settings);
-            json.put("3311", array);
-            settings.put("5851", Math.round(normalized * 254));
-            settings.put("5712", 3);    // second transition
+            json.put(TRADFRI_LIGHT, array);
+            settings.put(TRADFRI_DIMMER, Math.round(normalized * 254));
+            settings.put(TRADFRI_TRANSITION_TIME, 3);    // second transition
             String payload = json.toString();
             set(payload);
         } catch (JSONException e) {
@@ -107,8 +105,8 @@ public class IkeaTradfriBulbHandler extends BaseThingHandler implements IkeaTrad
             JSONObject settings = new JSONObject();
             JSONArray array = new JSONArray();
             array.put(settings);
-            json.put("3311", array);
-            settings.put("5850", on ? 1 : 0);
+            json.put(TRADFRI_LIGHT, array);
+            settings.put(TRADFRI_ONOFF, on ? 1 : 0);
             String payload = json.toString();
             set(payload);
         } catch (JSONException e) {
@@ -127,16 +125,16 @@ public class IkeaTradfriBulbHandler extends BaseThingHandler implements IkeaTrad
         if (percentValue < 66) colorString = "f1e0b5";
         if (percentValue < 33) colorString = "efd275";
 
-        logger.warn("Color string: {}", colorString);
+        logger.debug("Setting color temperature: {}", colorString);
 
         try {
             JSONObject json = new JSONObject();
             JSONObject settings = new JSONObject();
             JSONArray array = new JSONArray();
             array.put(settings);
-            json.put("3311", array);
-            settings.put("5706", colorString);
-            settings.put("5712", 3);    // second transition
+            json.put(TRADFRI_LIGHT, array);
+            settings.put(TRADFRI_COLOR, colorString);
+            settings.put(TRADFRI_TRANSITION_TIME, 3);    // second transition
             String payload = json.toString();
             set(payload);
         } catch (JSONException e) {
@@ -198,7 +196,7 @@ public class IkeaTradfriBulbHandler extends BaseThingHandler implements IkeaTrad
             b = Math.min(Math.max(Math.round(tmpCalc), 0), 255);
         }
         int rgb = (int) (((r << 16) | (g << 8) | b) & 0xFFFFFF);
-        logger.warn("ColorTemp to RGB, kelvin: {}, r: {}, g: {}, b: {} hex: {}", kelvin, r, g, b, intToHex(rgb));
+        logger.debug("ColorTemp to RGB, kelvin: {}, r: {}, g: {}, b: {} hex: {}", kelvin, r, g, b, intToHex(rgb));
         return rgb;
     }
 

@@ -55,7 +55,7 @@ public class IkeaTradfriGatewayHandler extends BaseBridgeHandler {
 
     private ScheduledFuture<?> authorizeJob;
     private List<IkeaTradfriDiscoverListener> dataListeners = new CopyOnWriteArrayList<>();
-    private Map<ThingUID, CoapObserveRelation> observeRelationMap = new HashMap<ThingUID, CoapObserveRelation>();
+    private Map<ThingUID, CoapObserveRelation> observeRelationMap = new HashMap<>();
     private List<ThingUID> pendingObserve = new CopyOnWriteArrayList<>();
 
     public IkeaTradfriGatewayHandler(Bridge bridge) {
@@ -79,7 +79,7 @@ public class IkeaTradfriGatewayHandler extends BaseBridgeHandler {
     @Override
     public void initialize() {
         IkeaTradfriGatewayConfiguration configuration = getConfigAs(IkeaTradfriGatewayConfiguration.class);
-        logger.info("Initializing with host: {} token: {}", configuration.host, configuration.token);
+        logger.debug("Initializing with host: {} token: {}", configuration.host, configuration.token);
         if(configuration != null) {
 
             if(configuration.host.isEmpty()) {
@@ -120,9 +120,9 @@ public class IkeaTradfriGatewayHandler extends BaseBridgeHandler {
             client.setEndpoint(endPoint);
             CoapResponse response = client.put(payload, MediaTypeRegistry.TEXT_PLAIN);
             if (response.isSuccess()) {
-                logger.info("COAP PUT Successful: {}", payload);
+                logger.debug("COAP PUT Successful: {}", payload);
             } else {
-                logger.error("COAP PUT Error: {}", response.getCode().toString());
+                logger.debug("COAP PUT Error: {}", response.getCode().toString());
             }
 
             client.shutdown();
@@ -134,7 +134,7 @@ public class IkeaTradfriGatewayHandler extends BaseBridgeHandler {
 
     private void observeDevice(ThingUID thingUID, IkeaTradfriObserveListener listener) {
         String deviceId = thingUID.getId();
-        logger.error("Observing {}", deviceId);
+        logger.debug("Observing {}", deviceId);
         IkeaTradfriGatewayConfiguration configuration = getConfigAs(IkeaTradfriGatewayConfiguration.class);
 
         try {
@@ -146,7 +146,7 @@ public class IkeaTradfriGatewayHandler extends BaseBridgeHandler {
 
                 @Override
                 public void onLoad(CoapResponse response) {
-                    logger.info("COAP Observe: \noptions: {}\npayload: {} ", response.getOptions().toString(), response.getResponseText());
+                    logger.debug("COAP Observe: \noptions: {}\npayload: {} ", response.getOptions().toString(), response.getResponseText());
                     listener.onDataUpdate(response.getResponseText());
                 }
 
@@ -182,7 +182,7 @@ public class IkeaTradfriGatewayHandler extends BaseBridgeHandler {
 
             CoapResponse response = client.get();
             String json = response.getResponseText();
-            logger.info("Got response for: {}\n   {}", url, json);
+            logger.debug("Got response for: {}\n   {}", url, json);
             client.shutdown();
             return json;
         }
@@ -233,7 +233,7 @@ public class IkeaTradfriGatewayHandler extends BaseBridgeHandler {
 
     @Override
     public void childHandlerInitialized(ThingHandler childHandler, Thing childThing) {
-        logger.warn("Child initialized: {}", childThing.getThingTypeUID().toString());
+        logger.debug("Child handler initialized: {}", childThing.getThingTypeUID().toString());
         if(childHandler instanceof IkeaTradfriBulbHandler) {
             if(isInitialized() && endPoint != null) {
                 observeDevice(childThing.getUID(), (IkeaTradfriBulbHandler)childHandler);
@@ -247,7 +247,7 @@ public class IkeaTradfriGatewayHandler extends BaseBridgeHandler {
 
     @Override
     public void childHandlerDisposed(ThingHandler childHandler, Thing childThing) {
-        logger.warn("Child disposed: {}", childThing.getThingTypeUID().toString());
+        logger.debug("Child handler disposed: {}", childThing.getThingTypeUID().toString());
         stopObserve(childThing.getUID());
 
         if (authorizeJob == null || authorizeJob.isDone() || authorizeJob.isCancelled()) {

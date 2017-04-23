@@ -44,6 +44,9 @@ public class IkeaTradfriBindingConstants {
     // COAP URI Defines
     public static final String TRADFRI_LIGHT = "3311";
     public static final String TRADFRI_COLOR = "5706";
+    public static final String TRADFRI_TRANSITION_TIME = "5712";
+    public static final String TRADFRI_ONOFF = "5850";
+    public static final String TRADFRI_DIMMER = "5851";
     public static final String TRADFRI_NAME = "9001";
     public static final String TRADFRI_INSTANCE_ID = "9003";
 

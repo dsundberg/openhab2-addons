@@ -103,6 +103,7 @@ public class IkeaTradfriGatewayHandler extends BaseBridgeHandler {
             if (authorizeJob == null || authorizeJob.isCancelled()) {
                 authorizeJob = scheduler.schedule(authorizeRunnable, 1, TimeUnit.SECONDS);
             }
+
         }
         else {
             updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR,
@@ -200,6 +201,14 @@ public class IkeaTradfriGatewayHandler extends BaseBridgeHandler {
             String res = fetchData("15001");
             if(res != null) {
                 updateStatus(ThingStatus.ONLINE);
+
+                for(ThingUID thingUID: pendingObserve) {
+                    Thing thing = getThingByUID(thingUID);
+                    if(thing.getHandler() != null) {
+                        observeDevice(thingUID, (IkeaTradfriBulbHandler)thing.getHandler());
+                    }
+                }
+                pendingObserve.clear();
 
                 try {
                     JSONArray array = new JSONArray(res);

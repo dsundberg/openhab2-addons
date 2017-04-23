@@ -233,7 +233,7 @@ public class IkeaTradfriGatewayHandler extends BaseBridgeHandler {
 
     @Override
     public void childHandlerInitialized(ThingHandler childHandler, Thing childThing) {
-        logger.debug("Child handler initialized: {}", childThing.getThingTypeUID().toString());
+        logger.debug("Child handler initialized: {} handler: {}", childThing.getThingTypeUID().toString(), childHandler);
         if(childHandler instanceof IkeaTradfriBulbHandler) {
             if(isInitialized() && endPoint != null) {
                 observeDevice(childThing.getUID(), (IkeaTradfriBulbHandler)childHandler);

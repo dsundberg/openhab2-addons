@@ -95,7 +95,7 @@ public class IkeaTradfriHandlerFactory extends BaseThingHandlerFactory {
             return super.createThing(thingTypeUID, configuration, newThingUID, bridgeUID);
         }
         throw new IllegalArgumentException(
-                "The thing type " + thingTypeUID + " is not supported by the Freebox binding.");
+                "The thing type " + thingTypeUID + " is not supported by the IKEA Tradfri binding.");
     }
 
     private void registerDiscoveryService(IkeaTradfriGatewayHandler bridgeHandler) {

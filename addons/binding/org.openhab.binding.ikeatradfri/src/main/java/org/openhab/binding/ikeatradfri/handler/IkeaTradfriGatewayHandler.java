@@ -19,6 +19,7 @@ import org.eclipse.californium.scandium.config.DtlsConnectorConfig;
 import org.eclipse.californium.scandium.dtls.pskstore.StaticPskStore;
 import org.eclipse.smarthome.core.thing.*;
 import org.eclipse.smarthome.core.thing.binding.BaseBridgeHandler;
+import org.eclipse.smarthome.core.thing.binding.ThingHandler;
 import org.eclipse.smarthome.core.types.Command;
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -32,7 +33,9 @@ import org.slf4j.LoggerFactory;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -52,10 +55,14 @@ public class IkeaTradfriGatewayHandler extends BaseBridgeHandler {
 
     private ScheduledFuture<?> authorizeJob;
     private List<IkeaTradfriDiscoverListener> dataListeners = new CopyOnWriteArrayList<>();
+    private Map<ThingUID, CoapObserveRelation> observeRelationMap = new HashMap<ThingUID, CoapObserveRelation>();
+    private List<ThingUID> pendingObserve = new CopyOnWriteArrayList<>();
 
     public IkeaTradfriGatewayHandler(Bridge bridge) {
         super(bridge);
         authorizeJob = null;
+        dtlsConnector = null;
+        endPoint = null;
     }
 
     @Override
@@ -124,7 +131,8 @@ public class IkeaTradfriGatewayHandler extends BaseBridgeHandler {
         }
     }
 
-    public void observeDevice(String deviceId, IkeaTradfriObserveListener listener) {
+    private void observeDevice(ThingUID thingUID, IkeaTradfriObserveListener listener) {
+        String deviceId = thingUID.getId();
         logger.error("Observing {}", deviceId);
         IkeaTradfriGatewayConfiguration configuration = getConfigAs(IkeaTradfriGatewayConfiguration.class);
 
@@ -148,10 +156,20 @@ public class IkeaTradfriGatewayHandler extends BaseBridgeHandler {
             };
 
             CoapObserveRelation relation = client.observe(handler);
+            observeRelationMap.put(thingUID, relation);
         } catch (URISyntaxException e) {
             logger.error("COAP URL error: {}", e.getMessage());
         }
     }
+
+    private void stopObserve(ThingUID thingUID) {
+        if(observeRelationMap.containsKey(thingUID)) {
+            CoapObserveRelation relation = observeRelationMap.get(thingUID);
+            relation.proactiveCancel();
+            observeRelationMap.remove(thingUID);
+        }
+    }
+
 
     public String fetchData(String url) {
         IkeaTradfriGatewayConfiguration configuration = getConfigAs(IkeaTradfriGatewayConfiguration.class);
@@ -203,6 +221,30 @@ public class IkeaTradfriGatewayHandler extends BaseBridgeHandler {
             }
         }
     };
+
+    @Override
+    public void childHandlerInitialized(ThingHandler childHandler, Thing childThing) {
+        logger.warn("Child initialized: {}", childThing.getThingTypeUID().toString());
+        if(childHandler instanceof IkeaTradfriBulbHandler) {
+            if(isInitialized() && endPoint != null) {
+                observeDevice(childThing.getUID(), (IkeaTradfriBulbHandler)childHandler);
+                updateStatus(ThingStatus.ONLINE);
+            }
+            else {
+                pendingObserve.add(childThing.getUID());
+            }
+        }
+    }
+
+    @Override
+    public void childHandlerDisposed(ThingHandler childHandler, Thing childThing) {
+        logger.warn("Child disposed: {}", childThing.getThingTypeUID().toString());
+        stopObserve(childThing.getUID());
+
+        if (authorizeJob == null || authorizeJob.isDone() || authorizeJob.isCancelled()) {
+            authorizeJob = scheduler.schedule(authorizeRunnable, 1, TimeUnit.SECONDS);
+        }
+    }
 
     public boolean registerDeviceListener(IkeaTradfriDiscoverListener dataListener) {
         if (dataListener == null) {

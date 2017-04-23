@@ -23,12 +23,26 @@
         </config-description>
     </bridge-type>
 
-    <thing-type id="white_bulb">
+    <thing-type id="warmwhite_bulb">
         <supported-bridge-type-refs>
             <bridge-type-ref id="gateway"/>
         </supported-bridge-type-refs>
 
-        <label>IKEA Tradfri White Bulb</label>
+        <label>IKEA Tradfri Warm White Bulb</label>
+        <description></description>
+
+        <channels>
+            <channel id="state" typeId="state"/>
+            <channel id="brightness" typeId="brightness"/>
+        </channels>
+    </thing-type>
+
+    <thing-type id="whitespectrum_bulb">
+        <supported-bridge-type-refs>
+            <bridge-type-ref id="gateway"/>
+        </supported-bridge-type-refs>
+
+        <label>IKEA Tradfri White Spectrum Bulb</label>
         <description></description>
 
         <channels>

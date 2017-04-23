@@ -11,10 +11,7 @@ import static org.openhab.binding.ikeatradfri.IkeaTradfriBindingConstants.*;
 
 import org.eclipse.smarthome.config.core.Configuration;
 import org.eclipse.smarthome.core.library.types.*;
-import org.eclipse.smarthome.core.thing.ChannelUID;
-import org.eclipse.smarthome.core.thing.Thing;
-import org.eclipse.smarthome.core.thing.ThingStatus;
-import org.eclipse.smarthome.core.thing.ThingStatusInfo;
+import org.eclipse.smarthome.core.thing.*;
 import org.eclipse.smarthome.core.thing.binding.BaseThingHandler;
 import org.eclipse.smarthome.core.types.Command;
 import org.json.JSONArray;
@@ -248,20 +245,16 @@ public class IkeaTradfriBulbHandler extends BaseThingHandler implements IkeaTrad
         logger.debug("bridgeStatusChanged {}", bridgeStatusInfo);
         String id = getThing().getUID().getId();
         if (bridgeStatusInfo.getStatus() == ThingStatus.ONLINE) {
-            ((IkeaTradfriGatewayHandler) getBridge().getHandler()).observeDevice(id, this);
             updateStatus(ThingStatus.ONLINE);
         }
         else {
-            updateStatus(ThingStatus.OFFLINE);
+            updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.BRIDGE_OFFLINE);
         }
     }
 
     @Override
     public void initialize() {
         Configuration configuration = getConfig();
-        logger.info("Bulb config: {}", configuration.values().toArray().toString());
-
-        // TODO: Sort this, bridgeStatusChanged only happens on boot, not when new device is added
-        updateStatus(ThingStatus.OFFLINE);
+        updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.BRIDGE_OFFLINE);
     }
 }

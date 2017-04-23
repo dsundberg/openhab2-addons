@@ -23,6 +23,8 @@ import org.slf4j.LoggerFactory;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.openhab.binding.ikeatradfri.IkeaTradfriBindingConstants.*;
+
 
 /**
  * The {@link IkeaTradfriDeviceDiscoveryService} is responsible for discovering all things
@@ -35,13 +37,10 @@ public class IkeaTradfriDeviceDiscoveryService extends AbstractDiscoveryService 
     private final Logger logger = LoggerFactory.getLogger(IkeaTradfriDeviceDiscoveryService.class);
 
     private static final int SEARCH_TIME = 10;
-
-    private static final String PHONE_ID = "wired";
-
     private IkeaTradfriGatewayHandler bridgeHandler;
 
     /**
-     * Creates a FreeboxDiscoveryService with background discovery disabled.
+     * Creates a IkeaTradlosDeviceDiscoveryService with background discovery disabled.
      */
     public IkeaTradfriDeviceDiscoveryService(IkeaTradfriGatewayHandler bridgeHandler) {
         super(IkeaTradfriBindingConstants.SUPPORTED_DEVICE_TYPES_UIDS, SEARCH_TIME, true);
@@ -59,20 +58,30 @@ public class IkeaTradfriDeviceDiscoveryService extends AbstractDiscoveryService 
 
     @Override
     protected void startScan() {
-        logger.debug("Starting Freebox discovery scan");
+        logger.debug("Starting IKEA Tradfri discovery scan");
     }
 
     @Override
     public void onDeviceFound(ThingUID bridge, JSONObject data) {
         if (bridge != null && data != null) {
             try {
-                if (data.has("3311") && data.has("9003")) {
-                    String id = Integer.toString(data.getInt("9003"));
-                    ThingUID thingId = new ThingUID(IkeaTradfriBindingConstants.THING_TYPE_BULB, bridge, id);
+                if (data.has(TRADFRI_LIGHT) && data.has(TRADFRI_INSTANCE_ID)) {
+                    String id = Integer.toString(data.getInt(TRADFRI_INSTANCE_ID));
+                    ThingUID thingId = new ThingUID(IkeaTradfriBindingConstants.THING_TYPE_WW_BULB, bridge, id);
+
+
+                    try {
+                        String color = data.getJSONArray(TRADFRI_LIGHT).getJSONObject(0).getString(TRADFRI_COLOR);
+                        thingId = new ThingUID(IkeaTradfriBindingConstants.THING_TYPE_WS_BULB, bridge, id);
+                    }
+                    catch (JSONException e) {
+                        logger.error("JSON error: {}", e.getMessage());
+                    }
+
 
                     String label = "IKEA Tradfri bulb";
                     try {
-                        label = data.getString("9001");
+                        label = data.getString(TRADFRI_NAME);
                     }
                     catch (JSONException e) {
                         logger.error("JSON error: {}", e.getMessage());

@@ -67,17 +67,17 @@ public class IkeaTradfriDeviceDiscoveryService extends AbstractDiscoveryService 
             try {
                 if (data.has(TRADFRI_LIGHT) && data.has(TRADFRI_INSTANCE_ID)) {
                     String id = Integer.toString(data.getInt(TRADFRI_INSTANCE_ID));
-                    ThingUID thingId = new ThingUID(IkeaTradfriBindingConstants.THING_TYPE_WW_BULB, bridge, id);
+                    ThingUID thingId;
 
+                    JSONObject state = data.getJSONArray(TRADFRI_LIGHT).getJSONObject(0);
 
-                    try {
-                        String color = data.getJSONArray(TRADFRI_LIGHT).getJSONObject(0).getString(TRADFRI_COLOR);
+                    // White spectrum light
+                    if(state.has(TRADFRI_COLOR)) {
                         thingId = new ThingUID(IkeaTradfriBindingConstants.THING_TYPE_WS_BULB, bridge, id);
                     }
-                    catch (JSONException e) {
-                        logger.error("JSON error: {}", e.getMessage());
+                    else {
+                        thingId = new ThingUID(IkeaTradfriBindingConstants.THING_TYPE_WW_BULB, bridge, id);
                     }
-
 
                     String label = "IKEA Tradfri bulb";
                     try {

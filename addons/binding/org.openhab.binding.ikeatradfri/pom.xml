@@ -15,27 +15,4 @@
 
   <name>IkeaTradfri Binding</name>
   <packaging>eclipse-plugin</packaging>
-
-  <dependencies>
-    <dependency>
-      <groupId>org.json</groupId>
-      <artifactId>org.json</artifactId>
-      <version>chargebee-1.0</version>
-    </dependency>
-    <dependency>
-      <groupId>org.eclipse.californium</groupId>
-      <artifactId>californium-core</artifactId>
-      <version>1.0.5</version>
-    </dependency>
-    <dependency>
-      <groupId>org.eclipse.californium</groupId>
-      <artifactId>scandium</artifactId>
-      <version>1.0.5</version>
-    </dependency>
-    <dependency>
-      <groupId>org.eclipse.californium</groupId>
-      <artifactId>element-connector</artifactId>
-      <version>1.0.5</version>
-    </dependency>
-  </dependencies>
 </project>

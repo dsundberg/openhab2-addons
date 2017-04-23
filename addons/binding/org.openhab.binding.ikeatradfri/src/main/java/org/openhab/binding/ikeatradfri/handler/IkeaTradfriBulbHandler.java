@@ -9,14 +9,12 @@ package org.openhab.binding.ikeatradfri.handler;
 
 import static org.openhab.binding.ikeatradfri.IkeaTradfriBindingConstants.*;
 
+import com.google.gson.*;
 import org.eclipse.smarthome.config.core.Configuration;
 import org.eclipse.smarthome.core.library.types.*;
 import org.eclipse.smarthome.core.thing.*;
 import org.eclipse.smarthome.core.thing.binding.BaseThingHandler;
 import org.eclipse.smarthome.core.types.Command;
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
 import org.openhab.binding.ikeatradfri.internal.IkeaTradfriObserveListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,6 +28,7 @@ import org.slf4j.LoggerFactory;
 public class IkeaTradfriBulbHandler extends BaseThingHandler implements IkeaTradfriObserveListener {
 
     private Logger logger = LoggerFactory.getLogger(IkeaTradfriBulbHandler.class);
+    private static final JsonParser parser = new JsonParser();
 
     public IkeaTradfriBulbHandler(Thing thing) {
         super(thing);
@@ -38,17 +37,17 @@ public class IkeaTradfriBulbHandler extends BaseThingHandler implements IkeaTrad
     @Override
     public void onDataUpdate(String data) {
         try {
-            JSONObject json = new JSONObject(data);
-            JSONObject state = json.getJSONArray(TRADFRI_LIGHT).getJSONObject(0);
+            JsonObject json = parser.parse(data).getAsJsonObject();
+            JsonObject state = json.getAsJsonArray(TRADFRI_LIGHT).get(0).getAsJsonObject();
 
-            OnOffType onoff = state.getInt(TRADFRI_ONOFF) == 1 ? OnOffType.ON : OnOffType.OFF;
+            OnOffType onoff = state.get(TRADFRI_ONOFF).getAsInt() == 1 ? OnOffType.ON : OnOffType.OFF;
             updateState(CHANNEL_STATE, onoff);
 
-            PercentType dimmer = new PercentType((int) Math.round(state.getInt(TRADFRI_DIMMER) / 2.54));
+            PercentType dimmer = new PercentType((int) Math.round(state.get(TRADFRI_DIMMER).getAsInt() / 2.54));
             updateState(CHANNEL_BRIGHTNESS, dimmer);
 
             try {
-                String color = state.getString(TRADFRI_COLOR);
+                String color = state.get(TRADFRI_COLOR).getAsString();
                 PercentType ctemp;
                 switch (color) {
                     case "f5faf6":
@@ -65,13 +64,12 @@ public class IkeaTradfriBulbHandler extends BaseThingHandler implements IkeaTrad
                         break;
                 }
                 updateState(CHANNEL_COLOR_TEMPERATURE, ctemp);
-            } catch (JSONException ex) {
+            } catch (JsonParseException ex) {
 
             }
 
-
             logger.debug("Updating channels brightness: {} state: {}", dimmer.toString(), onoff.toString());
-        } catch (JSONException e) {
+        } catch (JsonParseException e) {
             logger.error("JSON error: {}", e.getMessage());
             e.printStackTrace();
         }
@@ -85,31 +83,31 @@ public class IkeaTradfriBulbHandler extends BaseThingHandler implements IkeaTrad
 
     private void setBrightness(float normalized) {
         try {
-            JSONObject json = new JSONObject();
-            JSONObject settings = new JSONObject();
-            JSONArray array = new JSONArray();
-            array.put(settings);
-            json.put(TRADFRI_LIGHT, array);
-            settings.put(TRADFRI_DIMMER, Math.round(normalized * 254));
-            settings.put(TRADFRI_TRANSITION_TIME, 3);    // second transition
+            JsonObject json = new JsonObject();
+            JsonObject settings = new JsonObject();
+            JsonArray array = new JsonArray();
+            array.add(settings);
+            json.add(TRADFRI_LIGHT, array);
+            settings.add(TRADFRI_DIMMER, new JsonPrimitive(Math.round(normalized * 254)));
+            settings.add(TRADFRI_TRANSITION_TIME, new JsonPrimitive(3));    // second transition
             String payload = json.toString();
             set(payload);
-        } catch (JSONException e) {
+        } catch (JsonSyntaxException e) {
             logger.error("JSON Error: {}", e.getMessage());
         }
     }
 
     private void setState(boolean on) {
         try {
-            JSONObject json = new JSONObject();
-            JSONObject settings = new JSONObject();
-            JSONArray array = new JSONArray();
-            array.put(settings);
-            json.put(TRADFRI_LIGHT, array);
-            settings.put(TRADFRI_ONOFF, on ? 1 : 0);
+            JsonObject json = new JsonObject();
+            JsonObject settings = new JsonObject();
+            JsonArray array = new JsonArray();
+            array.add(settings);
+            json.add(TRADFRI_LIGHT, array);
+            settings.add(TRADFRI_ONOFF, new JsonPrimitive(on ? 1 : 0));
             String payload = json.toString();
             set(payload);
-        } catch (JSONException e) {
+        } catch (JsonSyntaxException e) {
             logger.error("JSON Error: {}", e.getMessage());
         }
     }
@@ -128,16 +126,16 @@ public class IkeaTradfriBulbHandler extends BaseThingHandler implements IkeaTrad
         logger.debug("Setting color temperature: {}", colorString);
 
         try {
-            JSONObject json = new JSONObject();
-            JSONObject settings = new JSONObject();
-            JSONArray array = new JSONArray();
-            array.put(settings);
-            json.put(TRADFRI_LIGHT, array);
-            settings.put(TRADFRI_COLOR, colorString);
-            settings.put(TRADFRI_TRANSITION_TIME, 3);    // second transition
+            JsonObject json = new JsonObject();
+            JsonObject settings = new JsonObject();
+            JsonArray array = new JsonArray();
+            array.add(settings);
+            json.add(TRADFRI_LIGHT, array);
+            settings.add(TRADFRI_COLOR, new JsonPrimitive(colorString));
+            settings.add(TRADFRI_TRANSITION_TIME, new JsonPrimitive(3));    // second transition
             String payload = json.toString();
             set(payload);
-        } catch (JSONException e) {
+        } catch (JsonSyntaxException e) {
             logger.error("JSON Error: {}", e.getMessage());
         }
     }

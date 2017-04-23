@@ -8,12 +8,12 @@
  */
 package org.openhab.binding.ikeatradfri.discovery;
 
+import com.google.gson.JsonObject;
+import com.google.gson.JsonSyntaxException;
 import org.eclipse.smarthome.config.discovery.AbstractDiscoveryService;
 import org.eclipse.smarthome.config.discovery.DiscoveryResult;
 import org.eclipse.smarthome.config.discovery.DiscoveryResultBuilder;
 import org.eclipse.smarthome.core.thing.ThingUID;
-import org.json.JSONException;
-import org.json.JSONObject;
 import org.openhab.binding.ikeatradfri.IkeaTradfriBindingConstants;
 import org.openhab.binding.ikeatradfri.handler.IkeaTradfriGatewayHandler;
 import org.openhab.binding.ikeatradfri.internal.IkeaTradfriDiscoverListener;
@@ -62,14 +62,14 @@ public class IkeaTradfriDeviceDiscoveryService extends AbstractDiscoveryService 
     }
 
     @Override
-    public void onDeviceFound(ThingUID bridge, JSONObject data) {
+    public void onDeviceFound(ThingUID bridge, JsonObject data) {
         if (bridge != null && data != null) {
             try {
                 if (data.has(TRADFRI_LIGHT) && data.has(TRADFRI_INSTANCE_ID)) {
-                    String id = Integer.toString(data.getInt(TRADFRI_INSTANCE_ID));
+                    String id = Integer.toString(data.get(TRADFRI_INSTANCE_ID).getAsInt());
                     ThingUID thingId;
 
-                    JSONObject state = data.getJSONArray(TRADFRI_LIGHT).getJSONObject(0);
+                    JsonObject state = data.get(TRADFRI_LIGHT).getAsJsonArray().get(0).getAsJsonObject();
 
                     // White spectrum light
                     if(state.has(TRADFRI_COLOR)) {
@@ -81,9 +81,9 @@ public class IkeaTradfriDeviceDiscoveryService extends AbstractDiscoveryService 
 
                     String label = "IKEA Tradfri bulb";
                     try {
-                        label = data.getString(TRADFRI_NAME);
+                        label = data.get(TRADFRI_NAME).getAsString();
                     }
-                    catch (JSONException e) {
+                    catch (JsonSyntaxException e) {
                         logger.error("JSON error: {}", e.getMessage());
                     }
 
@@ -95,7 +95,7 @@ public class IkeaTradfriDeviceDiscoveryService extends AbstractDiscoveryService 
 
                 }
             }
-            catch (JSONException e) {
+            catch (JsonSyntaxException e) {
                 logger.error("JSON error: {}", e.getMessage());
             }
         }

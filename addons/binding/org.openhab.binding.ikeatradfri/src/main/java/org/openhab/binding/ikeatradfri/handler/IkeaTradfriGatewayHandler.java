@@ -7,6 +7,7 @@
  */
 package org.openhab.binding.ikeatradfri.handler;
 
+import com.google.gson.*;
 import org.eclipse.californium.core.CoapClient;
 import org.eclipse.californium.core.CoapHandler;
 import org.eclipse.californium.core.CoapObserveRelation;
@@ -21,9 +22,6 @@ import org.eclipse.smarthome.core.thing.*;
 import org.eclipse.smarthome.core.thing.binding.BaseBridgeHandler;
 import org.eclipse.smarthome.core.thing.binding.ThingHandler;
 import org.eclipse.smarthome.core.types.Command;
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
 import org.openhab.binding.ikeatradfri.configuration.IkeaTradfriGatewayConfiguration;
 import org.openhab.binding.ikeatradfri.internal.IkeaTradfriDiscoverListener;
 import org.openhab.binding.ikeatradfri.internal.IkeaTradfriObserveListener;
@@ -52,6 +50,8 @@ public class IkeaTradfriGatewayHandler extends BaseBridgeHandler {
 
     private DTLSConnector dtlsConnector;
     private CoapEndpoint endPoint;
+
+    private static final JsonParser parser = new JsonParser();
 
     private ScheduledFuture<?> authorizeJob;
     private List<IkeaTradfriDiscoverListener> dataListeners = new CopyOnWriteArrayList<>();
@@ -211,17 +211,17 @@ public class IkeaTradfriGatewayHandler extends BaseBridgeHandler {
                 pendingObserve.clear();
 
                 try {
-                    JSONArray array = new JSONArray(res);
-                    for (int i=0; i<array.length(); i++) {
-                        res = fetchData("15001/"+array.getInt(i));
+                    JsonArray array = parser.parse(res).getAsJsonArray();
+                    for (int i=0; i<array.size(); i++) {
+                        res = fetchData("15001/"+array.get(i).getAsInt());
                         // Trigger a new discovery of things
-                        JSONObject json = new JSONObject(res);
+                        JsonObject json = new JsonParser().parse(res).getAsJsonObject();
 
                         for (IkeaTradfriDiscoverListener dataListener : dataListeners) {
                             dataListener.onDeviceFound(getThing().getUID(), json);
                         }
                     }
-                } catch (JSONException e) {
+                } catch (JsonParseException e) {
                     logger.error("JSON error: {}", e.getMessage());
                 }
             }

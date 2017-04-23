@@ -9,9 +9,9 @@ Bundle-ClassPath: .,
  lib/californium-osgi-1.0.5.jar,
  lib/californium-core-1.0.5.jar,
  lib/scandium-1.0.5.jar,
- lib/element-connector-1.0.5.jar,
- lib/org.json-chargebee-1.0.jar
+ lib/element-connector-1.0.5.jar
 Import-Package: com.google.common.base,
+ com.google.gson,
  com.google.common.collect,
  javax.jmdns,
  org.osgi.framework,

@@ -36,43 +36,44 @@ public class IkeaTradfriBulbHandler extends BaseThingHandler implements IkeaTrad
 
     @Override
     public void onDataUpdate(String data) {
+        LightProperties props = new LightProperties(data);
+
         try {
-            JsonObject json = parser.parse(data).getAsJsonObject();
-            JsonObject state = json.getAsJsonArray(TRADFRI_LIGHT).get(0).getAsJsonObject();
-
-            OnOffType onoff = state.get(TRADFRI_ONOFF).getAsInt() == 1 ? OnOffType.ON : OnOffType.OFF;
+            OnOffType onoff = props.getOnOffState() ? OnOffType.ON : OnOffType.OFF;
             updateState(CHANNEL_STATE, onoff);
-
-            PercentType dimmer = new PercentType((int) Math.round(state.get(TRADFRI_DIMMER).getAsInt() / 2.54));
-            updateState(CHANNEL_BRIGHTNESS, dimmer);
-
-            try {
-                String color = state.get(TRADFRI_COLOR).getAsString();
-                PercentType ctemp;
-                switch (color) {
-                    case "f5faf6":
-                        ctemp = new PercentType(100);
-                        break;
-                    case "f1e0b5":
-                        ctemp = new PercentType(50);
-                        break;
-                    case "efd275":
-                        ctemp = new PercentType(0);
-                        break;
-                    default:
-                        ctemp = new PercentType(50);
-                        break;
-                }
-                updateState(CHANNEL_COLOR_TEMPERATURE, ctemp);
-            } catch (JsonParseException ex) {
-
-            }
-
-            logger.debug("Updating channels brightness: {} state: {}", dimmer.toString(), onoff.toString());
-        } catch (JsonParseException e) {
-            logger.error("JSON error: {}", e.getMessage());
-            e.printStackTrace();
+            logger.debug("Updating channel state: {}", onoff.toString());
         }
+        catch(NullPointerException e) {}
+
+        try {
+            PercentType dimmer = props.getBrightness();
+            updateState(CHANNEL_BRIGHTNESS, dimmer);
+            logger.debug("Updating channel brightness: {} from {}", dimmer.toString(), props.getBrightness());
+        }
+        catch(NullPointerException e) {}
+
+        try {
+            String color = props.getColorTemperature();
+            PercentType ctemp;
+            switch (color) {
+                case "f5faf6":
+                    ctemp = new PercentType(100);
+                    break;
+                case "f1e0b5":
+                    ctemp = new PercentType(50);
+                    break;
+                case "efd275":
+                    ctemp = new PercentType(0);
+                    break;
+                default:
+                    ctemp = new PercentType(50);
+                    break;
+            }
+            updateState(CHANNEL_COLOR_TEMPERATURE, ctemp);
+            logger.debug("Updating channel color temp: {} to dimmer state: {}", color, ctemp.toString());
+        }
+        catch(NullPointerException e) {}
+
     }
 
     private void set(String payload) {
@@ -81,35 +82,84 @@ public class IkeaTradfriBulbHandler extends BaseThingHandler implements IkeaTrad
         ((IkeaTradfriGatewayHandler) getBridge().getHandler()).set("15001/" + id, payload);
     }
 
-    private void setBrightness(float normalized) {
-        try {
-            JsonObject json = new JsonObject();
-            JsonObject settings = new JsonObject();
-            JsonArray array = new JsonArray();
+    private class LightProperties {
+        JsonObject root;
+        JsonObject settings;
+        JsonArray array;
+
+        public LightProperties() {
+            root = new JsonObject();
+            settings = new JsonObject();
+            array = new JsonArray();
             array.add(settings);
-            json.add(TRADFRI_LIGHT, array);
-            settings.add(TRADFRI_DIMMER, new JsonPrimitive(Math.round(normalized * 254)));
-            settings.add(TRADFRI_TRANSITION_TIME, new JsonPrimitive(3));    // second transition
-            String payload = json.toString();
-            set(payload);
-        } catch (JsonSyntaxException e) {
-            logger.error("JSON Error: {}", e.getMessage());
+            root.add(TRADFRI_LIGHT, array);
+        }
+
+        public LightProperties(String jsonString) {
+            try {
+                root = parser.parse(jsonString).getAsJsonObject();
+                array = root.getAsJsonArray(TRADFRI_LIGHT);
+                settings = array.get(0).getAsJsonObject();
+            }
+            catch(JsonSyntaxException e) {
+                logger.error("JSON error: {}", e.getMessage());
+            }
+        }
+
+        LightProperties setBrightness(PercentType b) {
+            settings.add(TRADFRI_DIMMER, new JsonPrimitive(Math.round(b.floatValue()/100.0f * 254)));
+            return this;
+        }
+
+        PercentType getBrightness() {
+            int b = settings.get(TRADFRI_DIMMER).getAsInt();
+            if(b==1) // Handle corner case since we loose resolution
+                return new PercentType(1);
+            return new PercentType((int) Math.round(b / 2.54));
+        }
+
+        LightProperties setTransitionTime(int seconds) {
+            settings.add(TRADFRI_TRANSITION_TIME, new JsonPrimitive(seconds));
+            return this;
+        }
+
+        int getTransitionTime() {
+            return settings.get(TRADFRI_TRANSITION_TIME).getAsInt();
+        }
+
+        LightProperties setColorTemperature(String colorString) {
+            settings.add(TRADFRI_COLOR, new JsonPrimitive(colorString));
+            return this;
+        }
+
+        String getColorTemperature() {
+            return settings.get(TRADFRI_COLOR).getAsString();
+        }
+
+        LightProperties setOnOffState(boolean on) {
+            settings.add(TRADFRI_ONOFF, new JsonPrimitive(on ? 1 : 0));
+            return this;
+        }
+
+        boolean getOnOffState() {
+            return settings.get(TRADFRI_ONOFF).getAsInt() == 1;
+        }
+
+        String getJsonString() {
+            return root.toString();
         }
     }
 
+    private void setBrightness(PercentType dim) {
+        LightProperties props = new LightProperties();
+        props.setBrightness(dim).setTransitionTime(3);
+        set(props.getJsonString());
+    }
+
     private void setState(boolean on) {
-        try {
-            JsonObject json = new JsonObject();
-            JsonObject settings = new JsonObject();
-            JsonArray array = new JsonArray();
-            array.add(settings);
-            json.add(TRADFRI_LIGHT, array);
-            settings.add(TRADFRI_ONOFF, new JsonPrimitive(on ? 1 : 0));
-            String payload = json.toString();
-            set(payload);
-        } catch (JsonSyntaxException e) {
-            logger.error("JSON Error: {}", e.getMessage());
-        }
+        LightProperties props = new LightProperties();
+        props.setOnOffState(on);
+        set(props.getJsonString());
     }
 
     private void setColorTemperature(int percentValue) {
@@ -125,19 +175,9 @@ public class IkeaTradfriBulbHandler extends BaseThingHandler implements IkeaTrad
 
         logger.debug("Setting color temperature: {}", colorString);
 
-        try {
-            JsonObject json = new JsonObject();
-            JsonObject settings = new JsonObject();
-            JsonArray array = new JsonArray();
-            array.add(settings);
-            json.add(TRADFRI_LIGHT, array);
-            settings.add(TRADFRI_COLOR, new JsonPrimitive(colorString));
-            settings.add(TRADFRI_TRANSITION_TIME, new JsonPrimitive(3));    // second transition
-            String payload = json.toString();
-            set(payload);
-        } catch (JsonSyntaxException e) {
-            logger.error("JSON Error: {}", e.getMessage());
-        }
+        LightProperties props = new LightProperties();
+        props.setColorTemperature(colorString).setTransitionTime(3);
+        set(props.getJsonString());
     }
 
     private String intToHex(int color) {
@@ -204,8 +244,7 @@ public class IkeaTradfriBulbHandler extends BaseThingHandler implements IkeaTrad
         switch (channelUID.getId()) {
             case CHANNEL_BRIGHTNESS:
                 if (command instanceof PercentType) {
-                    float newBright = ((PercentType) command).floatValue();
-                    setBrightness(newBright / 100.0f);
+                    setBrightness((PercentType) command);
                 }
                 else if (command instanceof OnOffType) {
                     setState(((OnOffType) command) == OnOffType.ON ? true : false);

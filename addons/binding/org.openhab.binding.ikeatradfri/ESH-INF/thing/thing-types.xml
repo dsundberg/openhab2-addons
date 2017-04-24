@@ -12,9 +12,7 @@
         <config-description>
             <parameter name="host" type="text" required="true">
                 <label>Host</label>
-                <description>Location for the weather information.
-                    Syntax is WOEID, see https://en.wikipedia.org/wiki/WOEID.
-                </description>
+                <description>Hostname for the IKEA Tradfri gateway</description>
             </parameter>
             <parameter name="token" type="text" required="true">
                 <label>Security token</label>

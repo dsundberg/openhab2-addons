@@ -19,6 +19,9 @@ import org.openhab.binding.ikeatradfri.internal.IkeaTradfriObserveListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Arrays;
+import java.util.List;
+
 /**
  * The {@link IkeaTradfriBulbHandler} is responsible for handling commands, which are
  * sent to one of the channels.
@@ -53,24 +56,9 @@ public class IkeaTradfriBulbHandler extends BaseThingHandler implements IkeaTrad
         catch(NullPointerException e) {}
 
         try {
-            String color = props.getColorTemperature();
-            PercentType ctemp;
-            switch (color) {
-                case "f5faf6":
-                    ctemp = new PercentType(100);
-                    break;
-                case "f1e0b5":
-                    ctemp = new PercentType(50);
-                    break;
-                case "efd275":
-                    ctemp = new PercentType(0);
-                    break;
-                default:
-                    ctemp = new PercentType(50);
-                    break;
-            }
-            updateState(CHANNEL_COLOR_TEMPERATURE, ctemp);
-            logger.debug("Updating channel color temp: {} to dimmer state: {}", color, ctemp.toString());
+            PercentType colorTemp = props.getColorTemperature();
+            updateState(CHANNEL_COLOR_TEMPERATURE, colorTemp);
+            logger.debug("Updating channel color temp: {} ", colorTemp.toString());
         }
         catch(NullPointerException e) {}
 
@@ -127,13 +115,40 @@ public class IkeaTradfriBulbHandler extends BaseThingHandler implements IkeaTrad
             return settings.get(TRADFRI_TRANSITION_TIME).getAsInt();
         }
 
-        LightProperties setColorTemperature(String colorString) {
-            settings.add(TRADFRI_COLOR, new JsonPrimitive(colorString));
+        private final List<Double> X = Arrays.asList(33137.0,30138.0, 24933.0);
+        private final List<Double> Y = Arrays.asList(27211.0, 26909.0, 24691.0);
+
+
+        LightProperties setColorTemperature(PercentType c) {
+            double percentValue = c.doubleValue();
+
+            long newX, newY;
+            if(percentValue<50.0) {
+                double p = percentValue/50.0;
+                newX = Math.round(X.get(0)+p*(X.get(1)-X.get(0)));
+                newY = Math.round(Y.get(0)+p*(Y.get(1)-Y.get(0)));
+            }
+            else {
+                double p = (percentValue-50)/50.0;
+                newX = Math.round(X.get(1)+p*(X.get(2)-X.get(1)));
+                newY = Math.round(Y.get(1)+p*(Y.get(2)-Y.get(1)));
+            }
+            logger.debug("Setting new color: {} {} for {}", newX, newY, percentValue);
+
+            settings.add(TRADFRI_COLOR_X, new JsonPrimitive(newX));
+            settings.add(TRADFRI_COLOR_Y, new JsonPrimitive(newY));
             return this;
         }
 
-        String getColorTemperature() {
-            return settings.get(TRADFRI_COLOR).getAsString();
+        PercentType getColorTemperature() {
+            double x = settings.get(TRADFRI_COLOR_X).getAsInt()/1.0, value = 0.0;
+            if(x > X.get(1)) {
+                value = (x-X.get(0))/(X.get(1)-X.get(0))/2.0;
+            }
+            else {
+                value = (x-X.get(1))/(X.get(2)-X.get(1))/2.0+0.5;
+            }
+            return new PercentType((int)Math.round(value*100.0));
         }
 
         LightProperties setOnOffState(boolean on) {
@@ -162,80 +177,10 @@ public class IkeaTradfriBulbHandler extends BaseThingHandler implements IkeaTrad
         set(props.getJsonString());
     }
 
-    private void setColorTemperature(int percentValue) {
-        int kelvin = (40 - 27) * percentValue + 2700;
-        int color = kelvinToRGB(kelvin);
-
-        String colorString = intToHex(color);
-
-        // Override color calcs with 3 known supported color temps
-        if (percentValue < 100) colorString = "f5faf6";
-        if (percentValue < 66) colorString = "f1e0b5";
-        if (percentValue < 33) colorString = "efd275";
-
-        logger.debug("Setting color temperature: {}", colorString);
-
+    private void setColorTemperature(PercentType colordim) {
         LightProperties props = new LightProperties();
-        props.setColorTemperature(colorString).setTransitionTime(3);
+        props.setColorTemperature(colordim).setTransitionTime(3);
         set(props.getJsonString());
-    }
-
-    private String intToHex(int color) {
-        String r = Integer.toHexString((color / 256 / 256) & 0xff);
-        String g = Integer.toHexString((color / 256) & 0xff);
-        String b = Integer.toHexString(color & 0xff);
-        String colorString = r + g + b;
-        return colorString;
-    }
-
-    private int kelvinToRGB(int kelvin) {
-        // http://www.tannerhelland.com/4435/convert-temperature-rgb-algorithm-code/
-        // Given a temperature (in Kelvin), estimate an RGB equivalent
-
-        double tmpCalc;
-
-        // Clamp temperature between 1000 and 40000 degrees
-        double K = (double) Math.min(Math.max(1000, kelvin), 40000);
-
-        // All calculations require tmpKelvin \ 100, so only do the conversion once
-        K = K / 100.0;
-
-        // Calculate each color in turn
-        long r, g, b;
-
-        //First: red
-        if (K <= 66) r = 255;
-        else {
-            // Note: the R-squared value for this approximation is .988
-            tmpCalc = K - 60.0;
-            tmpCalc = 329.698727446 * Math.pow(tmpCalc, -0.1332047592);
-            r = Math.min(Math.max(Math.round(tmpCalc), 0), 255);
-        }
-        // Second: green
-        if (K <= 66.0) {
-            // Note: the R-squared value for this approximation is .996
-            tmpCalc = K;
-            tmpCalc = 99.4708025861 * Math.log(tmpCalc) - 161.1195681661;
-            g = Math.min(Math.max(Math.round(tmpCalc), 0), 255);
-        } else {
-            // Note: the R-squared value for this approximation is .987
-            tmpCalc = K - 60.0;
-            tmpCalc = 288.1221695283 * Math.pow(tmpCalc, -0.0755148492);
-            g = Math.min(Math.max(Math.round(tmpCalc), 0), 255);
-        }
-
-        // Third: blue
-        if (K >= 66.0) b = 255;
-        else if (K <= 19.0) b = 0;
-        else {
-            // Note: the R-squared value for this approximation is .998
-            tmpCalc = K - 10.0;
-            tmpCalc = 138.5177312231 * Math.log(tmpCalc) - 305.0447927307;
-            b = Math.min(Math.max(Math.round(tmpCalc), 0), 255);
-        }
-        int rgb = (int) (((r << 16) | (g << 8) | b) & 0xFFFFFF);
-        logger.debug("ColorTemp to RGB, kelvin: {}, r: {}, g: {}, b: {} hex: {}", kelvin, r, g, b, intToHex(rgb));
-        return rgb;
     }
 
     @Override
@@ -263,8 +208,7 @@ public class IkeaTradfriBulbHandler extends BaseThingHandler implements IkeaTrad
                 break;
             case CHANNEL_COLOR_TEMPERATURE:
                 if (command instanceof PercentType) {
-                    PercentType dimValue = (PercentType) command;
-                    setColorTemperature(dimValue.intValue());
+                    setColorTemperature((PercentType) command);
                 }
                 else {
                     logger.error("Can't handle command {} on channel {}", command, channelUID);

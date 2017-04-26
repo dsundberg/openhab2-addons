@@ -15,6 +15,7 @@ import org.eclipse.smarthome.core.library.types.*;
 import org.eclipse.smarthome.core.thing.*;
 import org.eclipse.smarthome.core.thing.binding.BaseThingHandler;
 import org.eclipse.smarthome.core.types.Command;
+import org.eclipse.smarthome.core.types.RefreshType;
 import org.openhab.binding.ikeatradfri.internal.IkeaTradfriObserveListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,46 +30,6 @@ import java.util.List;
  * @author Daniel Sundberg - Initial contribution
  */
 public class IkeaTradfriBulbHandler extends BaseThingHandler implements IkeaTradfriObserveListener {
-
-    private Logger logger = LoggerFactory.getLogger(IkeaTradfriBulbHandler.class);
-    private static final JsonParser parser = new JsonParser();
-
-    public IkeaTradfriBulbHandler(Thing thing) {
-        super(thing);
-    }
-
-    @Override
-    public void onDataUpdate(String data) {
-        LightProperties props = new LightProperties(data);
-
-        try {
-            OnOffType onoff = props.getOnOffState() ? OnOffType.ON : OnOffType.OFF;
-            updateState(CHANNEL_STATE, onoff);
-            logger.debug("Updating channel state: {}", onoff.toString());
-        }
-        catch(NullPointerException e) {}
-
-        try {
-            PercentType dimmer = props.getBrightness();
-            updateState(CHANNEL_BRIGHTNESS, dimmer);
-            logger.debug("Updating channel brightness: {} from {}", dimmer.toString(), props.getBrightness());
-        }
-        catch(NullPointerException e) {}
-
-        try {
-            PercentType colorTemp = props.getColorTemperature();
-            updateState(CHANNEL_COLOR_TEMPERATURE, colorTemp);
-            logger.debug("Updating channel color temp: {} ", colorTemp.toString());
-        }
-        catch(NullPointerException e) {}
-
-    }
-
-    private void set(String payload) {
-        String id = getThing().getUID().getId();
-        logger.debug("Sending to: {} payload: {}", id, payload);
-        ((IkeaTradfriGatewayHandler) getBridge().getHandler()).set("15001/" + id, payload);
-    }
 
     private class LightProperties {
         JsonObject root;
@@ -165,6 +126,50 @@ public class IkeaTradfriBulbHandler extends BaseThingHandler implements IkeaTrad
         }
     }
 
+    private Logger logger = LoggerFactory.getLogger(IkeaTradfriBulbHandler.class);
+    private static final JsonParser parser = new JsonParser();
+    private LightProperties prevProperties = null;
+    public IkeaTradfriBulbHandler(Thing thing) {
+        super(thing);
+    }
+
+    @Override
+    public void onDataUpdate(String data) {
+        updateStatus(ThingStatus.ONLINE);
+        prevProperties = new LightProperties(data);
+        updateStatusFromProperties(prevProperties);
+    }
+
+    private void updateStatusFromProperties(LightProperties props) {
+        try {
+            OnOffType onoff = props.getOnOffState() ? OnOffType.ON : OnOffType.OFF;
+            updateState(CHANNEL_STATE, onoff);
+            logger.debug("Updating channel state: {}", onoff.toString());
+        }
+        catch(NullPointerException e) {}
+
+        try {
+            PercentType dimmer = props.getBrightness();
+            updateState(CHANNEL_BRIGHTNESS, dimmer);
+            logger.debug("Updating channel brightness: {} from {}", dimmer.toString(), props.getBrightness());
+        }
+        catch(NullPointerException e) {}
+
+        try {
+            PercentType colorTemp = props.getColorTemperature();
+            updateState(CHANNEL_COLOR_TEMPERATURE, colorTemp);
+            logger.debug("Updating channel color temp: {} ", colorTemp.toString());
+        }
+        catch(NullPointerException e) {}
+
+    }
+
+    private void set(String payload) {
+        String id = getThing().getUID().getId();
+        logger.debug("Sending to: {} payload: {}", id, payload);
+        ((IkeaTradfriGatewayHandler) getBridge().getHandler()).coapPUT("15001/" + id, payload);
+    }
+
     private void setBrightness(PercentType dim) {
         LightProperties props = new LightProperties();
         props.setBrightness(dim).setTransitionTime(3);
@@ -185,6 +190,10 @@ public class IkeaTradfriBulbHandler extends BaseThingHandler implements IkeaTrad
 
     @Override
     public void handleCommand(ChannelUID channelUID, Command command) {
+        if(command instanceof RefreshType && prevProperties != null) {
+            logger.debug("Refresh {}", channelUID.toString());
+            updateStatusFromProperties(prevProperties);
+        }
 
         switch (channelUID.getId()) {
             case CHANNEL_BRIGHTNESS:
@@ -195,7 +204,7 @@ public class IkeaTradfriBulbHandler extends BaseThingHandler implements IkeaTrad
                     setState(((OnOffType) command) == OnOffType.ON ? true : false);
                 }
                 else {
-                    logger.error("Can't handle command {} on channel {}", command, channelUID);
+                    logger.warn("Can't handle command {} on channel {}", command, channelUID);
                 }
                 break;
             case CHANNEL_STATE:
@@ -203,7 +212,7 @@ public class IkeaTradfriBulbHandler extends BaseThingHandler implements IkeaTrad
                     setState(((OnOffType) command) == OnOffType.ON ? true : false);
                 }
                 else {
-                    logger.error("Can't handle command {} on channel {}", command, channelUID);
+                    logger.warn("Can't handle command {} on channel {}", command, channelUID);
                 }
                 break;
             case CHANNEL_COLOR_TEMPERATURE:
@@ -211,11 +220,11 @@ public class IkeaTradfriBulbHandler extends BaseThingHandler implements IkeaTrad
                     setColorTemperature((PercentType) command);
                 }
                 else {
-                    logger.error("Can't handle command {} on channel {}", command, channelUID);
+                    logger.warn("Can't handle command {} on channel {}", command, channelUID);
                 }
                 break;
             default:
-                logger.error("Can't handle command {} on channel {}", command, channelUID);
+                logger.warn("Can't handle command {} on channel {}", command, channelUID);
         }
     }
 
@@ -233,7 +242,6 @@ public class IkeaTradfriBulbHandler extends BaseThingHandler implements IkeaTrad
 
     @Override
     public void initialize() {
-        Configuration configuration = getConfig();
-        updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.BRIDGE_OFFLINE);
+        updateStatus(ThingStatus.OFFLINE);
     }
 }

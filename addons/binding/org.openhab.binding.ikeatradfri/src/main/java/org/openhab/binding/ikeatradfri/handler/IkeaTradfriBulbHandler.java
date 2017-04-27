@@ -210,9 +210,12 @@ public class IkeaTradfriBulbHandler extends BaseThingHandler implements IkeaTrad
 
     @Override
     public void handleCommand(ChannelUID channelUID, Command command) {
-        if(command instanceof RefreshType && prevProperties != null) {
-            logger.debug("Refresh {}", channelUID.toString());
-            updateStatusFromProperties(prevProperties);
+        if(command instanceof RefreshType) {
+            if(prevProperties != null) {
+                logger.debug("Refresh {}", channelUID.toString());
+                updateStatusFromProperties(prevProperties);
+            }
+            return;
         }
 
         switch (channelUID.getId()) {

@@ -214,14 +214,7 @@ public class IkeaTradfriGatewayHandler extends BaseBridgeHandler implements Ikea
         try {
             JsonArray array = json.getAsJsonArray();
             for (int i=0; i<array.size(); i++) {
-                coapGET("15001/"+array.get(i).getAsInt()).thenAccept(data -> {
-                    logger.debug("Got response {}\nListeners {}", data, dataListeners.size());
-                    // Trigger a new discovery of things
-                    JsonObject json2 = new JsonParser().parse(data).getAsJsonObject();
-                    for (IkeaTradfriDiscoverListener dataListener : dataListeners) {
-                        dataListener.onDeviceFound(getThing().getUID(), json2);
-                    }
-                });
+                deviceDiscoverHelper(array.get(i).getAsString());
             }
         } catch (JsonSyntaxException e) {
             logger.warn("JSON error: {}", e.getMessage());
@@ -234,6 +227,17 @@ public class IkeaTradfriGatewayHandler extends BaseBridgeHandler implements Ikea
             }
         }
         pendingObserve.clear();
+    }
+
+    private void deviceDiscoverHelper(String deviceId) {
+        coapGET("15001/"+deviceId).thenAccept(data -> {
+            logger.debug("Got response {}\nListeners {}", data, dataListeners.size());
+            // Trigger a new discovery of things
+            JsonObject json2 = new JsonParser().parse(data).getAsJsonObject();
+            for (IkeaTradfriDiscoverListener dataListener : dataListeners) {
+                dataListener.onDeviceFound(getThing().getUID(), json2);
+            }
+        });
     }
 
     private void observe(String url, ThingUID thingUID, IkeaTradfriObserveListener listener) {
@@ -306,11 +310,7 @@ public class IkeaTradfriGatewayHandler extends BaseBridgeHandler implements Ikea
     @Override
     public void childHandlerDisposed(ThingHandler childHandler, Thing childThing) {
         logger.debug("Child handler disposed: {}", childThing.getThingTypeUID().toString());
-        stopObserve(childThing.getUID());
-
-        // Re-initialize observe device
-        stopObserve(getThing().getUID());
-        observe("15001", getThing().getUID(), this);
+        deviceDiscoverHelper(childThing.getUID().getId());
     }
 
     public boolean registerDeviceListener(IkeaTradfriDiscoverListener dataListener) {

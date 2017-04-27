@@ -76,6 +76,11 @@ public class IkeaTradfriGatewayHandler extends BaseBridgeHandler implements Ikea
         }
         observeRelationMap.clear();
 
+        for(CoapClient client: asyncClients) {
+            client.shutdown();
+        }
+        asyncClients.clear();
+
         endPoint.destroy();
         dtlsConnector.destroy();
     }

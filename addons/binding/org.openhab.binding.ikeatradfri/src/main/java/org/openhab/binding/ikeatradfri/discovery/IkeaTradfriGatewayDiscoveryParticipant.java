@@ -41,10 +41,11 @@ public class IkeaTradfriGatewayDiscoveryParticipant implements MDNSDiscoveryPart
     @Override
     public ThingUID getThingUID(ServiceInfo service) {
         if (service != null) {
+            String name = service.getName();
             if ((service.getType() != null) && service.getType().equals(getServiceType())
-                    && (service.getName().matches("gw:([a-f0-9]{2}[-]?){6}"))) {
+                    && (name.matches("gw:([a-f0-9]{2}[-]?){6}"))) {
                 return new ThingUID(IkeaTradfriBindingConstants.THING_TYPE_GATEWAY,
-                        service.getName().replaceAll("[^A-Za-z0-9_]", "_"));
+                        name.replaceAll("[^A-Za-z0-9_]", ""));
             }
         }
         return null;
@@ -52,59 +53,20 @@ public class IkeaTradfriGatewayDiscoveryParticipant implements MDNSDiscoveryPart
 
     @Override
     public DiscoveryResult createResult(ServiceInfo service) {
-        logger.trace("createResult ServiceInfo: {}", service);
+        logger.debug("IKEA Tradfri Gateway discover result: {}", service.toString());
         DiscoveryResult result = null;
         String ip = null;
-        //StringBuilder sb = new StringBuilder(;
-        List<String> sb = new LinkedList<>();
-
-        sb.add("application");
-        sb.add(service.getApplication());
-
-        sb.add("type");
-        sb.add(service.getType());
-
-        sb.add("port");
-        sb.add(Integer.toString(service.getPort()));
-
-        sb.add("inet4:");
-        for(Inet4Address addr:service.getInet4Addresses()) {
-            sb.add(addr.getHostAddress());
-        }
-        sb.add("Host addresses:");
-        for(String addr:service.getHostAddresses()) {
-            sb.add(addr);
-        }
-        sb.add("Property names:");
-        Enumeration<String> props = service.getPropertyNames();
-        while(props.hasMoreElements()) {
-            String s = props.nextElement();
-            sb.add(s);
-            sb.add("=");
-            sb.add(service.getPropertyString(s));
-        }
-
-        sb.add("key:");
-        sb.add(service.getKey());
-
-        sb.add("name:");
-        sb.add(service.getName());
-
-        sb.add("nice:");
-        sb.add(service.getNiceTextString());
-
-        sb.add("qualified:");
-        sb.add(service.getQualifiedNameMap().toString());
-
-        logger.trace("Discovered gateway, data: {}", String.join(" ", sb));
 
         if (service.getHostAddresses() != null && service.getHostAddresses().length > 0
                 && !service.getHostAddresses()[0].isEmpty()) {
             ip = service.getHostAddresses()[0];
         }
+
         ThingUID thingUID = getThingUID(service);
         if (thingUID != null && ip != null) {
             logger.debug("Created a DiscoveryResult for Ikea Trådfri Gateway {} on IP {}", thingUID, ip);
+
+            Enumeration<String> props = service.getPropertyNames();
             Map<String, Object> properties = new HashMap<>(1);
             props = service.getPropertyNames();
             while(props.hasMoreElements()) {
@@ -113,7 +75,7 @@ public class IkeaTradfriGatewayDiscoveryParticipant implements MDNSDiscoveryPart
             }
 
             properties.put(IkeaTradfriGatewayConfiguration.HOST, ip + ":" + service.getPort());
-            result = DiscoveryResultBuilder.create(thingUID).withProperties(properties).withLabel(service.getName())
+            result = DiscoveryResultBuilder.create(thingUID).withProperties(properties).withLabel("IKEA Trådfri Gateway")
                     .build();
         }
         return result;

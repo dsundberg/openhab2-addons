@@ -31,9 +31,7 @@ import org.slf4j.LoggerFactory;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledFuture;
@@ -57,6 +55,7 @@ public class IkeaTradfriGatewayHandler extends BaseBridgeHandler implements Ikea
     private List<IkeaTradfriDiscoverListener> dataListeners = new CopyOnWriteArrayList<>();
     private Map<ThingUID, CoapObserveRelation> observeRelationMap = new HashMap<>();
     private List<ThingUID> pendingObserve = new CopyOnWriteArrayList<>();
+    private Set<CoapClient> asyncClients = new HashSet<>();
 
     public IkeaTradfriGatewayHandler(Bridge bridge) {
         super(bridge);
@@ -135,16 +134,17 @@ public class IkeaTradfriGatewayHandler extends BaseBridgeHandler implements Ikea
                         logger.warn("COAP GET Error: {} for {}", response.getCode().toString(), url);
                         future.completeExceptionally(null);
                     }
-                    client.shutdown();
+                    removeAsyncClient(client);
                 }
 
                 @Override
                 public void onError() {
                     logger.warn("COAP GET Error");
                     future.completeExceptionally(null);
-                    client.shutdown();
+                    removeAsyncClient(client);
                 }
             };
+            addAsyncClient(client);
             client.get(handler);
         }
         catch (URISyntaxException e) {
@@ -172,17 +172,18 @@ public class IkeaTradfriGatewayHandler extends BaseBridgeHandler implements Ikea
                         logger.debug("COAP PUT Error: {} for {}", response.getCode().toString(), url);
                         future.completeExceptionally(null);
                     }
-                    client.shutdown();
+                    removeAsyncClient(client);
                 }
 
                 @Override
                 public void onError() {
                     logger.debug("COAP PUT Error");
                     future.completeExceptionally(null);
-                    client.shutdown();
+                    removeAsyncClient(client);
                 }
             };
-            client.put (handler, payload, MediaTypeRegistry.TEXT_PLAIN);
+            addAsyncClient(client);
+            client.put(handler, payload, MediaTypeRegistry.TEXT_PLAIN);
             return future;
         }
         catch (URISyntaxException e) {
@@ -190,6 +191,15 @@ public class IkeaTradfriGatewayHandler extends BaseBridgeHandler implements Ikea
             future.completeExceptionally(null);
         }
         return future;
+    }
+
+    private void addAsyncClient(CoapClient client) {
+        asyncClients.add(client);
+    }
+
+    private void removeAsyncClient(CoapClient client) {
+        client.shutdown();
+        asyncClients.remove(client);
     }
 
     @Override

@@ -8,6 +8,8 @@
  */
 package org.openhab.binding.ikeatradfri.internal;
 
+import com.google.gson.JsonElement;
+
 /**
  * The {@link IkeaTradfriObserveListener} is notified by the bridge thing handler
  * with updated data from the Tradfri gateway.
@@ -15,5 +17,5 @@ package org.openhab.binding.ikeatradfri.internal;
  * @author Daniel Sundberg - Initial contribution
  */
 public interface IkeaTradfriObserveListener {
-    public void onDataUpdate(String data);
+    public void onDataUpdate(JsonElement data);
 }

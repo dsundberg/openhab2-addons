@@ -34,9 +34,9 @@ import java.net.URISyntaxException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
 
 /**
  * The {@link IkeaTradfriGatewayHandler} is responsible for handling commands, which are
@@ -44,7 +44,7 @@ import java.util.concurrent.TimeUnit;
  * 
  * @author Daniel Sundberg - Initial contribution
  */
-public class IkeaTradfriGatewayHandler extends BaseBridgeHandler {
+public class IkeaTradfriGatewayHandler extends BaseBridgeHandler implements IkeaTradfriObserveListener {
 
     private Logger logger = LoggerFactory.getLogger(IkeaTradfriGatewayHandler.class);
 
@@ -72,6 +72,11 @@ public class IkeaTradfriGatewayHandler extends BaseBridgeHandler {
 
     @Override
     public void dispose() {
+        for(ThingUID id: observeRelationMap.keySet()) {
+            observeRelationMap.get(id).proactiveCancel();
+        }
+        observeRelationMap.clear();
+
         endPoint.destroy();
         dtlsConnector.destroy();
     }
@@ -99,11 +104,8 @@ public class IkeaTradfriGatewayHandler extends BaseBridgeHandler {
             dtlsConnector = new DTLSConnector(builder.build());
             endPoint = new CoapEndpoint(dtlsConnector, NetworkConfig.getStandard());
 
-            logger.debug("Binding will schedule a job to establish a connection...");
-            if (authorizeJob == null || authorizeJob.isCancelled()) {
-                authorizeJob = scheduler.schedule(authorizeRunnable, 1, TimeUnit.SECONDS);
-            }
-
+            logger.debug("Starting observe on devices...");
+            observe("15001", getThing().getUID(), this);
         }
         else {
             updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR,
@@ -112,55 +114,157 @@ public class IkeaTradfriGatewayHandler extends BaseBridgeHandler {
         }
     }
 
-    public void set(String uriString, String payload) {
+    public CompletableFuture<String> coapGET(String url) {
         IkeaTradfriGatewayConfiguration configuration = getConfigAs(IkeaTradfriGatewayConfiguration.class);
+        logger.debug("COAP GET: {}", url);
+        CompletableFuture<String> future = new CompletableFuture<>();
         try {
-            URI uri = new URI("coaps://" + configuration.host + "//"+uriString);
+            URI uri = new URI("coaps://" + configuration.host + "//" + url);
             CoapClient client = new CoapClient(uri);
             client.setEndpoint(endPoint);
-            CoapResponse response = client.put(payload, MediaTypeRegistry.TEXT_PLAIN);
-            if (response.isSuccess()) {
-                logger.debug("COAP PUT Successful: {}", payload);
-            } else {
-                logger.debug("COAP PUT Error: {}", response.getCode().toString());
-            }
 
-            client.shutdown();
-
-        } catch (URISyntaxException e) {
-            logger.error("COAP URI exception: {}", e.getMessage());
-        }
-    }
-
-    private void observeDevice(ThingUID thingUID, IkeaTradfriObserveListener listener) {
-        String deviceId = thingUID.getId();
-        logger.debug("Observing {}", deviceId);
-        IkeaTradfriGatewayConfiguration configuration = getConfigAs(IkeaTradfriGatewayConfiguration.class);
-
-        try {
-            URI uri = new URI("coaps://" + configuration.host + "//15001/"+deviceId);
-
-            CoapClient client = new CoapClient(uri);
-            client.setEndpoint(endPoint);
             CoapHandler handler = new CoapHandler() {
-
                 @Override
                 public void onLoad(CoapResponse response) {
-                    logger.debug("COAP Observe: \noptions: {}\npayload: {} ", response.getOptions().toString(), response.getResponseText());
-                    listener.onDataUpdate(response.getResponseText());
+                    if (response.isSuccess()) {
+                        String data = response.getResponseText();
+                        logger.debug("COAP GET Successful for: {}", url);
+                        future.complete(data);
+                    }
+                    else {
+                        logger.warn("COAP GET Error: {} for {}", response.getCode().toString(), url);
+                        future.completeExceptionally(null);
+                    }
+                    client.shutdown();
                 }
 
                 @Override
                 public void onError() {
-                    logger.error("problem with observeDevice");
+                    logger.warn("COAP GET Error");
+                    future.completeExceptionally(null);
+                    client.shutdown();
+                }
+            };
+            client.get(handler);
+        }
+        catch (URISyntaxException e) {
+            future.completeExceptionally(e);
+        }
+        return future;
+    }
+
+    public CompletableFuture<String> coapPUT(String url, String payload) {
+        CompletableFuture<String> future = new CompletableFuture<>();
+        IkeaTradfriGatewayConfiguration configuration = getConfigAs(IkeaTradfriGatewayConfiguration.class);
+        try {
+            logger.debug("COAP PUT {} to {}", payload, url);
+            URI uri = new URI("coaps://" + configuration.host + "//"+url);
+            CoapClient client = new CoapClient(uri);
+            client.setEndpoint(endPoint);
+            CoapHandler handler = new CoapHandler() {
+                @Override
+                public void onLoad(CoapResponse response) {
+                    if (response.isSuccess()) {
+                        logger.debug("COAP PUT Successful to: {}", url);
+                        future.complete(response.getResponseText());
+                    }
+                    else {
+                        logger.debug("COAP PUT Error: {} for {}", response.getCode().toString(), url);
+                        future.completeExceptionally(null);
+                    }
+                    client.shutdown();
+                }
+
+                @Override
+                public void onError() {
+                    logger.debug("COAP PUT Error");
+                    future.completeExceptionally(null);
+                    client.shutdown();
+                }
+            };
+            client.put (handler, payload, MediaTypeRegistry.TEXT_PLAIN);
+            return future;
+        }
+        catch (URISyntaxException e) {
+            logger.warn("COAP URI exception: {}", e.getMessage());
+            future.completeExceptionally(null);
+        }
+        return future;
+    }
+
+    @Override
+    public void onDataUpdate(JsonElement json) {
+        logger.debug("Observation data: {}", json.toString());
+
+        try {
+            JsonArray array = json.getAsJsonArray();
+            for (int i=0; i<array.size(); i++) {
+                coapGET("15001/"+array.get(i).getAsInt()).thenAccept(data -> {
+                    logger.debug("Got response {}\nListeners {}", data, dataListeners.size());
+                    // Trigger a new discovery of things
+                    JsonObject json2 = new JsonParser().parse(data).getAsJsonObject();
+                    for (IkeaTradfriDiscoverListener dataListener : dataListeners) {
+                        dataListener.onDeviceFound(getThing().getUID(), json2);
+                    }
+                });
+            }
+        } catch (JsonSyntaxException e) {
+            logger.warn("JSON error: {}", e.getMessage());
+        }
+
+        for(ThingUID thingUID: pendingObserve) {
+            Thing thing = getThingByUID(thingUID);
+            if(thing.getHandler() != null) {
+                observeDevice(thingUID, (IkeaTradfriBulbHandler)thing.getHandler());
+            }
+        }
+        pendingObserve.clear();
+    }
+
+    private void observe(String url, ThingUID thingUID, IkeaTradfriObserveListener listener) {
+        logger.debug("Observing: {}", url);
+        IkeaTradfriGatewayConfiguration configuration = getConfigAs(IkeaTradfriGatewayConfiguration.class);
+        try {
+            URI uri = new URI("coaps://" + configuration.host + "//" + url);
+
+            CoapClient client = new CoapClient(uri);
+            client.setEndpoint(endPoint);
+            CoapHandler handler = new CoapHandler() {
+                @Override
+                public void onLoad(CoapResponse response) {
+                    logger.debug("COAP Observe: \noptions: {}\npayload: {} ", response.getOptions().toString(), response.getResponseText());
+                    if (response.isSuccess()) {
+                        try {
+                            listener.onDataUpdate(parser.parse(response.getResponseText()));
+                        }
+                        catch(JsonParseException e) {
+                            logger.warn("Observed value not json: {}, {}", response.getResponseText(), e.getMessage());
+                        }
+                    }
+                    else {
+                        logger.debug("COAP Observe Error: {} for {}", response.getCode().toString(), url);
+                    }
+                    updateStatus(ThingStatus.ONLINE);
+                }
+
+                @Override
+                public void onError() {
+                    logger.warn("COAP Observe error");
+                    updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR);
                 }
             };
 
             CoapObserveRelation relation = client.observe(handler);
             observeRelationMap.put(thingUID, relation);
+
         } catch (URISyntaxException e) {
-            logger.error("COAP URL error: {}", e.getMessage());
+            logger.warn("COAP URL error: {}", e.getMessage());
         }
+    }
+
+    private void observeDevice(ThingUID thingUID, IkeaTradfriObserveListener listener) {
+        String url = "15001/"+thingUID.getId();
+        observe(url, thingUID, listener);
     }
 
     private void stopObserve(ThingUID thingUID) {
@@ -171,73 +275,12 @@ public class IkeaTradfriGatewayHandler extends BaseBridgeHandler {
         }
     }
 
-
-    public String fetchData(String url) {
-        IkeaTradfriGatewayConfiguration configuration = getConfigAs(IkeaTradfriGatewayConfiguration.class);
-        try {
-
-            URI uri = new URI("coaps://" + configuration.host + "//" + url);
-            CoapClient client = new CoapClient(uri);
-            client.setEndpoint(endPoint);
-
-            CoapResponse response = client.get();
-            String json = response.getResponseText();
-            logger.debug("Got response for: {}\n   {}", url, json);
-            client.shutdown();
-            return json;
-        }
-        catch (URISyntaxException e) {
-            updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR, e.toString());
-            e.printStackTrace();
-        }
-        return null;
-    }
-
-    private Runnable authorizeRunnable = new Runnable() {
-        @Override
-        @SuppressWarnings("null")
-        public void run() {
-            logger.debug("Authorize job...");
-            String res = fetchData("15001");
-            if(res != null) {
-                updateStatus(ThingStatus.ONLINE);
-
-                for(ThingUID thingUID: pendingObserve) {
-                    Thing thing = getThingByUID(thingUID);
-                    if(thing.getHandler() != null) {
-                        observeDevice(thingUID, (IkeaTradfriBulbHandler)thing.getHandler());
-                    }
-                }
-                pendingObserve.clear();
-
-                try {
-                    JsonArray array = parser.parse(res).getAsJsonArray();
-                    for (int i=0; i<array.size(); i++) {
-                        res = fetchData("15001/"+array.get(i).getAsInt());
-                        // Trigger a new discovery of things
-                        JsonObject json = new JsonParser().parse(res).getAsJsonObject();
-
-                        for (IkeaTradfriDiscoverListener dataListener : dataListeners) {
-                            dataListener.onDeviceFound(getThing().getUID(), json);
-                        }
-                    }
-                } catch (JsonParseException e) {
-                    logger.error("JSON error: {}", e.getMessage());
-                }
-            }
-            else {
-                updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR, "Unable to fetch data from gateway.");
-            }
-        }
-    };
-
     @Override
     public void childHandlerInitialized(ThingHandler childHandler, Thing childThing) {
         logger.debug("Child handler initialized: {} handler: {}", childThing.getThingTypeUID().toString(), childHandler);
         if(childHandler instanceof IkeaTradfriBulbHandler) {
             if(isInitialized() && endPoint != null) {
                 observeDevice(childThing.getUID(), (IkeaTradfriBulbHandler)childHandler);
-                updateStatus(ThingStatus.ONLINE);
             }
             else {
                 pendingObserve.add(childThing.getUID());
@@ -250,9 +293,9 @@ public class IkeaTradfriGatewayHandler extends BaseBridgeHandler {
         logger.debug("Child handler disposed: {}", childThing.getThingTypeUID().toString());
         stopObserve(childThing.getUID());
 
-        if (authorizeJob == null || authorizeJob.isDone() || authorizeJob.isCancelled()) {
-            authorizeJob = scheduler.schedule(authorizeRunnable, 1, TimeUnit.SECONDS);
-        }
+        // Re-initialize observe device
+        stopObserve(getThing().getUID());
+        observe("15001", getThing().getUID(), this);
     }
 
     public boolean registerDeviceListener(IkeaTradfriDiscoverListener dataListener) {

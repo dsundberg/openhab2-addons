@@ -55,6 +55,17 @@ public class IkeaTradfriBulbHandler extends BaseThingHandler implements IkeaTrad
             }
         }
 
+        public LightProperties(JsonElement json) {
+            try {
+                root = json.getAsJsonObject();
+                array = root.getAsJsonArray(TRADFRI_LIGHT);
+                settings = array.get(0).getAsJsonObject();
+            }
+            catch(JsonSyntaxException e) {
+                logger.error("JSON error: {}", e.getMessage());
+            }
+        }
+
         LightProperties setBrightness(PercentType b) {
             settings.add(TRADFRI_DIMMER, new JsonPrimitive(Math.round(b.floatValue()/100.0f * 254)));
             return this;
@@ -134,7 +145,7 @@ public class IkeaTradfriBulbHandler extends BaseThingHandler implements IkeaTrad
     }
 
     @Override
-    public void onDataUpdate(String data) {
+    public void onDataUpdate(JsonElement data) {
         updateStatus(ThingStatus.ONLINE);
         prevProperties = new LightProperties(data);
         updateStatusFromProperties(prevProperties);

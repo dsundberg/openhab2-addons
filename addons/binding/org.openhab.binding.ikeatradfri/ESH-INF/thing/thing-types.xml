@@ -6,13 +6,13 @@
 
     <!-- Sample Thing Type -->
     <bridge-type id="gateway">
-        <label>IKEA Tradfri Gateway Binding</label>
-        <description>Binding for the IKEA Tradfri Gateway</description>
+        <label>IKEA Trådfri Gateway</label>
+        <description>Binding for the IKEA Trådfri Gateway</description>
 
         <config-description>
             <parameter name="host" type="text" required="true">
                 <label>Host</label>
-                <description>Hostname for the IKEA Tradfri gateway</description>
+                <description>Hostname for the IKEA Trådfri gateway</description>
             </parameter>
             <parameter name="token" type="text" required="true">
                 <label>Security token</label>
@@ -26,7 +26,7 @@
             <bridge-type-ref id="gateway"/>
         </supported-bridge-type-refs>
 
-        <label>IKEA Tradfri Warm White Bulb</label>
+        <label>IKEA Trådfri Warm White Bulb</label>
         <description></description>
 
         <channels>
@@ -40,7 +40,7 @@
             <bridge-type-ref id="gateway"/>
         </supported-bridge-type-refs>
 
-        <label>IKEA Tradfri White Spectrum Bulb</label>
+        <label>IKEA Trådfri White Spectrum Bulb</label>
         <description></description>
 
         <channels>

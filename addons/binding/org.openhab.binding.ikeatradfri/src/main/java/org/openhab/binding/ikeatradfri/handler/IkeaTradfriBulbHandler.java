@@ -178,7 +178,16 @@ public class IkeaTradfriBulbHandler extends BaseThingHandler implements IkeaTrad
     private void set(String payload) {
         String id = getThing().getUID().getId();
         logger.debug("Sending to: {} payload: {}", id, payload);
-        ((IkeaTradfriGatewayHandler) getBridge().getHandler()).coapPUT("15001/" + id, payload);
+        Bridge bridge = getBridge();
+        if(bridge != null) {
+            IkeaTradfriGatewayHandler handler = (IkeaTradfriGatewayHandler)bridge.getHandler();
+            if(handler != null) {
+                handler.coapPUT("15001/" + id, payload);
+            }
+            else {
+                logger.error("Bulb has no handler");
+            }
+        }
     }
 
     private void setBrightness(PercentType dim) {
